@@ -30,47 +30,62 @@ if __name__ == '__main__':
     #sets the module in eval node
     model.eval()
     
-    #数据预处理
-    ori_img = cv2.imread(opt.img)
-    res_img = cv2.resize(ori_img, (cfg["width"], cfg["height"]), interpolation = cv2.INTER_LINEAR) 
-    img = res_img.reshape(1, cfg["height"], cfg["width"], 3)
-    img = torch.from_numpy(img.transpose(0,3, 1, 2))
-    img = img.to(device).float() / 255.0
+    cap = cv2.VideoCapture(0)
+    if cap.isOpened() == False:
+        print("Error in opening video stream or file")
+    while(cap.isOpened()):
+        ret, frame = cap.read()
+        if ret:
+            # Display the resulting frame
 
-    #模型推理
-    start = time.perf_counter()
-    preds = model(img)
-    end = time.perf_counter()
-    time = (end - start) * 1000.
-    print("forward time:%fms"%time)
+            #数据预处理
+            ori_img = frame
+            res_img = cv2.resize(ori_img, (cfg["width"], cfg["height"]), interpolation = cv2.INTER_LINEAR) 
+            img = res_img.reshape(1, cfg["height"], cfg["width"], 3)
+            img = torch.from_numpy(img.transpose(0,3, 1, 2))
+            img = img.to(device).float() / 255.0
 
-    #特征图后处理
-    output = utils.utils.handel_preds(preds, cfg, device)
-    output_boxes = utils.utils.non_max_suppression(output, conf_thres = 0.3, iou_thres = 0.4)
+            #模型推理
+            # start = time.perf_counter()
+            preds = model(img)
+            # end = time.perf_counter()
+            # time = (end - start) * 1000.
+            # print("forward time:%fms"%time)
 
-    #加载label names
-    LABEL_NAMES = []
-    with open(cfg["names"], 'r') as f:
-	    for line in f.readlines():
-	        LABEL_NAMES.append(line.strip())
-    
-    h, w, _ = ori_img.shape
-    scale_h, scale_w = h / cfg["height"], w / cfg["width"]
+            #特征图后处理
+            output = utils.utils.handel_preds(preds, cfg, device)
+            output_boxes = utils.utils.non_max_suppression(output, conf_thres = 0.3, iou_thres = 0.4)
 
-    #绘制预测框
-    for box in output_boxes[0]:
-        box = box.tolist()
-       
-        obj_score = box[4]
-        category = LABEL_NAMES[int(box[5])]
+            #加载label names
+            LABEL_NAMES = []
+            with open(cfg["names"], 'r') as f:
+                for line in f.readlines():
+                    LABEL_NAMES.append(line.strip())
+            
+            h, w, _ = ori_img.shape
+            scale_h, scale_w = h / cfg["height"], w / cfg["width"]
 
-        x1, y1 = int(box[0] * scale_w), int(box[1] * scale_h)
-        x2, y2 = int(box[2] * scale_w), int(box[3] * scale_h)
+            #绘制预测框
+            for box in output_boxes[0]:
+                box = box.tolist()
+            
+                obj_score = box[4]
+                category = LABEL_NAMES[int(box[5])]
 
-        cv2.rectangle(ori_img, (x1, y1), (x2, y2), (255, 255, 0), 2)
-        cv2.putText(ori_img, '%.2f' % obj_score, (x1, y1 - 5), 0, 0.7, (0, 255, 0), 2)	
-        cv2.putText(ori_img, category, (x1, y1 - 25), 0, 0.7, (0, 255, 0), 2)
+                x1, y1 = int(box[0] * scale_w), int(box[1] * scale_h)
+                x2, y2 = int(box[2] * scale_w), int(box[3] * scale_h)
 
-    cv2.imwrite("test_result.png", ori_img)
+                cv2.rectangle(ori_img, (x1, y1), (x2, y2), (255, 255, 0), 2)
+                cv2.putText(ori_img, '%.2f' % obj_score, (x1, y1 - 5), 0, 0.7, (0, 255, 0), 2)	
+                cv2.putText(ori_img, category, (x1, y1 - 25), 0, 0.7, (0, 255, 0), 2)
+            cv2.imshow("test",ori_img)
+            # cv2.imwrite("test_result.png", ori_img)
+            # Press esc to exit
+            if cv2.waitKey(20) & 0xFF == 27:
+                break
+        else:
+            break
+    cap.release()
+    cv2.destroyAllWindows()
     
 
